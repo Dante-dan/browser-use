@@ -115,6 +115,9 @@ def build_snapshot_lookup(
 		has_clickable_data = 'isClickable' in nodes
 		is_clickable_set: set[int] = set(nodes['isClickable']['index']) if has_clickable_data else set()
 
+		has_stacking_context_data = 'stackingContexts' in layout
+		stacking_context_set: set[int] = set(layout['stackingContexts']['index']) if has_stacking_context_data else set()
+
 		# Live form values live in the snapshot, not in the DOM attributes. Map
 		# snapshot index -> string once so each node lookup stays O(1).
 		input_value_by_index: dict[int, str] = {}
@@ -178,10 +181,10 @@ def build_snapshot_lookup(
 						client_rect_data = client_rects_data[layout_idx]
 						if client_rect_data and len(client_rect_data) >= 4:
 							client_rects = DOMRect(
-								x=client_rect_data[0],
-								y=client_rect_data[1],
-								width=client_rect_data[2],
-								height=client_rect_data[3],
+								x=client_rect_data[0] / device_pixel_ratio,
+								y=client_rect_data[1] / device_pixel_ratio,
+								width=client_rect_data[2] / device_pixel_ratio,
+								height=client_rect_data[3] / device_pixel_ratio,
 							)
 
 					# Extract scroll rects if available
@@ -190,15 +193,15 @@ def build_snapshot_lookup(
 						scroll_rect_data = scroll_rects_data[layout_idx]
 						if scroll_rect_data and len(scroll_rect_data) >= 4:
 							scroll_rects = DOMRect(
-								x=scroll_rect_data[0],
-								y=scroll_rect_data[1],
-								width=scroll_rect_data[2],
-								height=scroll_rect_data[3],
+								x=scroll_rect_data[0] / device_pixel_ratio,
+								y=scroll_rect_data[1] / device_pixel_ratio,
+								width=scroll_rect_data[2] / device_pixel_ratio,
+								height=scroll_rect_data[3] / device_pixel_ratio,
 							)
 
-					# Extract stacking contexts if available
-					if layout_idx < len(layout.get('stackingContexts', {}).get('index', [])):
-						stacking_contexts = layout.get('stackingContexts', {}).get('index', [])[layout_idx]
+				# RareBooleanData indexes layout entries where the value is true.
+				if has_stacking_context_data:
+					stacking_contexts = _parse_rare_boolean_data(stacking_context_set, layout_idx)
 
 			snapshot_lookup[backend_node_id] = EnhancedSnapshotNode(
 				is_clickable=is_clickable,

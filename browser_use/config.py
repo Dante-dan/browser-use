@@ -318,7 +318,7 @@ def create_default_config() -> DBStyleConfigJSON:
 
 
 def load_and_migrate_config(config_path: Path) -> DBStyleConfigJSON:
-	"""Load config.json or create fresh one if old format detected."""
+	"""Load config.json, propagating errors instead of replacing an unreadable config."""
 	if not config_path.exists():
 		# Create fresh config with defaults
 		config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,16 +351,9 @@ def load_and_migrate_config(config_path: Path) -> DBStyleConfigJSON:
 		logger.debug(f'Created fresh config.json at {config_path}')
 		return new_config
 
-	except Exception as e:
-		logger.error(f'Failed to load config from {config_path}: {e}, creating fresh config')
-		# On any error, create fresh config
-		new_config = create_default_config()
-		try:
-			with open(config_path, 'w') as f:
-				json.dump(new_config.model_dump(), f, indent=2)
-		except Exception as write_error:
-			logger.error(f'Failed to write fresh config: {write_error}')
-		return new_config
+	except Exception:
+		logger.error(f'Failed to load config from {config_path}; refusing to replace it with defaults')
+		raise
 
 
 class Config:

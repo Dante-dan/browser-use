@@ -18,6 +18,9 @@ if TYPE_CHECKING:
 # Track if we've shown the glob warning
 _GLOB_WARNING_SHOWN = False
 
+# Track if we've warned about the unrestricted default profile
+_UNRESTRICTED_PROFILE_WARNING_SHOWN = False
+
 
 class SecurityWatchdog(BaseWatchdog):
 	"""Monitors and enforces security policies for URL access."""
@@ -119,6 +122,17 @@ class SecurityWatchdog(BaseWatchdog):
 				'Note: Patterns like "*.example.com" will match both subdomains AND the main domain.'
 			)
 
+	def _log_unrestricted_profile_warning(self) -> None:
+		"""Warn once when the profile has no network navigation restrictions."""
+		global _UNRESTRICTED_PROFILE_WARNING_SHOWN
+		if not _UNRESTRICTED_PROFILE_WARNING_SHOWN:
+			_UNRESTRICTED_PROFILE_WARNING_SHOWN = True
+			self.logger.warning(
+				'⚠️ BrowserProfile has unrestricted network access: allowed_domains and prohibited_domains '
+				'are unset, and block_ip_addresses=False. This allows navigation to public and private IP addresses. '
+				'Set block_ip_addresses=True or configure allowed_domains or prohibited_domains for untrusted tasks.'
+			)
+
 	def _get_domain_variants(self, host: str) -> tuple[str, str]:
 		"""Get both variants of a domain (with and without www prefix).
 
@@ -204,6 +218,13 @@ class SecurityWatchdog(BaseWatchdog):
 		host = parsed.hostname
 		if not host:
 			return False
+
+		if (
+			not self.browser_session.browser_profile.allowed_domains
+			and not self.browser_session.browser_profile.prohibited_domains
+			and not self.browser_session.browser_profile.block_ip_addresses
+		):
+			self._log_unrestricted_profile_warning()
 
 		# Check if IP addresses should be blocked (before domain checks)
 		if self.browser_session.browser_profile.block_ip_addresses:

@@ -5,6 +5,8 @@ Tests cover IPv4, IPv6, localhost, private networks, edge cases, and interaction
 with allowed_domains and prohibited_domains configurations.
 """
 
+from unittest.mock import patch
+
 from bubus import EventBus
 
 from browser_use.browser import BrowserProfile, BrowserSession
@@ -415,6 +417,22 @@ class TestDefaultBehavior:
 		assert watchdog._is_url_allowed('http://127.0.0.1:8080/') is True
 		assert watchdog._is_url_allowed('http://[::1]/') is True
 		assert watchdog._is_url_allowed('https://8.8.8.8/') is True
+
+	def test_unrestricted_default_warns_once(self, monkeypatch):
+		"""The compatible unrestricted default should make its security tradeoff visible."""
+		import browser_use.browser.watchdogs.security_watchdog as security_watchdog
+
+		monkeypatch.setattr(security_watchdog, '_UNRESTRICTED_PROFILE_WARNING_SHOWN', False)
+		browser_profile = BrowserProfile(headless=True, user_data_dir=None)
+		browser_session = BrowserSession(browser_profile=browser_profile)
+		watchdog = SecurityWatchdog(browser_session=browser_session, event_bus=EventBus())
+
+		with patch.object(watchdog.logger, 'warning') as warning:
+			assert watchdog._is_url_allowed('https://example.com/') is True
+			assert watchdog._is_url_allowed('http://127.0.0.1:8080/') is True
+
+		warning.assert_called_once()
+		assert 'unrestricted network access' in warning.call_args.args[0]
 
 
 class TestComplexScenarios:
